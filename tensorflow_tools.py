@@ -1,3 +1,6 @@
+# -*- coding:utf8 -*-
+import tensorflow as tf
+
 # 计算整个网络的参数量
 # 利用 tf.trainable_variables
 def count_model_params():
