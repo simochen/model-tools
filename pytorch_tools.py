@@ -8,7 +8,7 @@ from torch.autograd import Variable
 import numpy as np
 
 
-def print_model_param_nums(model=None):
+def print_model_param_nums(model=None, multiply_adds=True):
     if model == None:
         model = torchvision.models.alexnet()
     total = sum([param.nelement() for param in model.parameters()])
@@ -32,17 +32,16 @@ def print_model_param_flops(model=None, input_res=224):
         list_2['names'] = np.prod(input[0].shape)
 
 
-    multiply_adds = False
     list_conv=[]
     def conv_hook(self, input, output):
         batch_size, input_channels, input_height, input_width = input[0].size()
         output_channels, output_height, output_width = output[0].size()
 
-        kernel_ops = self.kernel_size[0] * self.kernel_size[1] * (self.in_channels / self.groups) * (2 if multiply_adds else 1)
+        kernel_ops = self.kernel_size[0] * self.kernel_size[1] * (self.in_channels / self.groups)
         bias_ops = 1 if self.bias is not None else 0
 
         params = output_channels * (kernel_ops + bias_ops)
-        flops = batch_size * params * output_height * output_width
+        flops = (kernel_ops * (2 if multiply_adds else 1) + bias_ops) * output_channels * output_height * output_width * batch_size
 
         list_conv.append(flops)
 
@@ -59,7 +58,7 @@ def print_model_param_flops(model=None, input_res=224):
 
     list_bn=[]
     def bn_hook(self, input, output):
-        list_bn.append(input[0].nelement())
+        list_bn.append(input[0].nelement() * 2)
 
     list_relu=[]
     def relu_hook(self, input, output):
@@ -72,12 +71,19 @@ def print_model_param_flops(model=None, input_res=224):
 
         kernel_ops = self.kernel_size * self.kernel_size
         bias_ops = 0
-        params = output_channels * (kernel_ops + bias_ops)
-        flops = batch_size * params * output_height * output_width
+        params = 0
+        flops = (kernel_ops + bias_ops) * output_channels * output_height * output_width * batch_size
 
         list_pooling.append(flops)
 
+    list_upsample=[]
+    # For bilinear upsample
+    def upsample_hook(self, input, output):
+        batch_size, input_channels, input_height, input_width = input[0].size()
+        output_channels, output_height, output_width = output[0].size()
 
+        flops = output_height * output_width * output_channels * batch_size * 12
+        list_upsample.append(flops)
 
     def foo(net):
         childrens = list(net.children())
@@ -92,6 +98,8 @@ def print_model_param_flops(model=None, input_res=224):
                 net.register_forward_hook(relu_hook)
             if isinstance(net, torch.nn.MaxPool2d) or isinstance(net, torch.nn.AvgPool2d):
                 net.register_forward_hook(pooling_hook)
+            if isinstance(net, torch.nn.Upsample):
+                net.register_forward_hook(upsample_hook)
             return
         for c in childrens:
             foo(c)
@@ -103,7 +111,7 @@ def print_model_param_flops(model=None, input_res=224):
     out = model(input)
 
 
-    total_flops = (sum(list_conv) + sum(list_linear) + sum(list_bn) + sum(list_relu) + sum(list_pooling))
+    total_flops = (sum(list_conv) + sum(list_linear) + sum(list_bn) + sum(list_relu) + sum(list_pooling) + sum(list_upsample))
 
     print('  + Number of FLOPs: %.2fG' % (total_flops / 1e9))
 
