@@ -8,7 +8,7 @@ from torch.autograd import Variable
 import numpy as np
 
 
-def print_model_param_nums(model=None, multiply_adds=True):
+def print_model_param_nums(model=None):
     if model == None:
         model = torchvision.models.alexnet()
     total = sum([param.nelement() for param in model.parameters()])
@@ -16,7 +16,7 @@ def print_model_param_nums(model=None, multiply_adds=True):
 
 
 
-def print_model_param_flops(model=None, input_res=224):
+def print_model_param_flops(model=None, input_res=224, multiply_adds=True):
 
     prods = {}
     def save_hook(name):
