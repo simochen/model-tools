@@ -16,7 +16,7 @@ def print_model_param_nums(model=None):
 
 
 
-def print_model_param_flops(model=None, input_res=224, multiply_adds=True):
+def print_model_param_flops(model=None, input_res=[224, 224], multiply_adds=True):
 
     prods = {}
     def save_hook(name):
@@ -88,7 +88,7 @@ def print_model_param_flops(model=None, input_res=224, multiply_adds=True):
     def foo(net):
         childrens = list(net.children())
         if not childrens:
-            if isinstance(net, torch.nn.Conv2d):
+            if isinstance(net, torch.nn.Conv2d) or isinstance(net, torch.nn.ConvTranspose2d):
                 net.register_forward_hook(conv_hook)
             if isinstance(net, torch.nn.Linear):
                 net.register_forward_hook(linear_hook)
@@ -107,7 +107,7 @@ def print_model_param_flops(model=None, input_res=224, multiply_adds=True):
     if model == None:
         model = torchvision.models.alexnet()
     foo(model)
-    input = Variable(torch.rand(3,input_res,input_res).unsqueeze(0), requires_grad = True)
+    input = Variable(torch.rand(3,input_res[1],input_res[0]).unsqueeze(0), requires_grad = True)
     out = model(input)
 
 
